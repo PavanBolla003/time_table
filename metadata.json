@@ -1,0 +1,8 @@
+{
+  "name": "StudiFlow - Timetable & Analytics",
+  "description": "A comprehensive study management system with AI-powered schedule assistance, time tracking, and detailed productivity analytics.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
