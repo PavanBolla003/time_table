@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AppState, DayOfWeek, ScheduleItem, Subject } from '../types';
+import { AppState, DayOfWeek, ScheduleItem, ActivityType } from '../types';
 import { DAYS_OF_WEEK } from '../constants';
 
 interface TimetableProps {
@@ -12,7 +12,9 @@ interface TimetableProps {
 const Timetable: React.FC<TimetableProps> = ({ state, onAddSchedule, onRemoveSchedule }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEntry, setNewEntry] = useState({
-    subjectId: state.subjects[0]?.id || '',
+    title: '',
+    type: ActivityType.STUDY,
+    subjectId: '',
     day: DayOfWeek.MONDAY,
     startTime: '09:00',
     endTime: '10:00',
@@ -20,8 +22,49 @@ const Timetable: React.FC<TimetableProps> = ({ state, onAddSchedule, onRemoveSch
 
   const handleAdd = (e: React.FormEvent) => {
     e.preventDefault();
-    onAddSchedule(newEntry);
+
+    // Auto-fill title if subject selected but no title
+    let finalTitle = newEntry.title;
+    if (!finalTitle && newEntry.type === ActivityType.STUDY && newEntry.subjectId) {
+      const sub = state.subjects.find(s => s.id === newEntry.subjectId);
+      if (sub) finalTitle = sub.name;
+    }
+    if (!finalTitle) finalTitle = newEntry.type;
+
+    onAddSchedule({
+      title: finalTitle,
+      type: newEntry.type,
+      subjectId: newEntry.subjectId || undefined,
+      day: newEntry.day,
+      startTime: newEntry.startTime,
+      endTime: newEntry.endTime
+    });
     setIsModalOpen(false);
+    setNewEntry({
+      title: '',
+      type: ActivityType.STUDY,
+      subjectId: '',
+      day: DayOfWeek.MONDAY,
+      startTime: '09:00',
+      endTime: '10:00',
+    });
+  };
+
+  const getCardStyle = (item: ScheduleItem) => {
+    if (item.type === ActivityType.STUDY && item.subjectId) {
+      const subject = state.subjects.find(s => s.id === item.subjectId);
+      return { borderLeftColor: subject?.color || '#3b82f6', borderLeftWidth: '4px' };
+    }
+    // Generic colors based on type
+    const colors: Record<string, string> = {
+      [ActivityType.SLEEP]: '#a855f7',
+      [ActivityType.MEAL]: '#f97316',
+      [ActivityType.SOCIAL]: '#ec4899',
+      [ActivityType.EXERCISE]: '#22c55e',
+      [ActivityType.CLASS]: '#3b82f6',
+      [ActivityType.OTHER]: '#64748b',
+    };
+    return { borderLeftColor: colors[item.type] || '#64748b', borderLeftWidth: '4px' };
   };
 
   return (
@@ -31,7 +74,7 @@ const Timetable: React.FC<TimetableProps> = ({ state, onAddSchedule, onRemoveSch
           <h1 className="text-3xl font-bold text-slate-900">Weekly Planner</h1>
           <p className="text-slate-500">Organize your repeating classes and sessions.</p>
         </div>
-        <button 
+        <button
           onClick={() => setIsModalOpen(true)}
           className="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-700 transition-all flex items-center space-x-2 shadow-sm"
         >
@@ -58,27 +101,24 @@ const Timetable: React.FC<TimetableProps> = ({ state, onAddSchedule, onRemoveSch
                 {state.schedules
                   .filter(s => s.day === day)
                   .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                  .map(item => {
-                    const subject = state.subjects.find(s => s.id === item.subjectId);
-                    return (
-                      <div 
-                        key={item.id} 
-                        className="group relative bg-white p-3 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md cursor-default"
-                        style={{ borderLeftColor: subject?.color, borderLeftWidth: '4px' }}
+                  .map(item => (
+                    <div
+                      key={item.id}
+                      className="group relative bg-white p-3 rounded-xl border border-slate-100 shadow-sm transition-all hover:shadow-md cursor-default"
+                      style={getCardStyle(item)}
+                    >
+                      <button
+                        onClick={() => onRemoveSchedule(item.id)}
+                        className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
                       >
-                        <button 
-                          onClick={() => onRemoveSchedule(item.id)}
-                          className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200"
-                        >
-                          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                        </button>
-                        <h4 className="text-xs font-bold text-slate-900 truncate">{subject?.name}</h4>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{item.startTime} - {item.endTime}</p>
-                      </div>
-                    );
-                  })}
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                      <h4 className="text-xs font-bold text-slate-900 truncate">{item.title}</h4>
+                      <p className="text-[10px] text-slate-500 mt-0.5">{item.startTime} - {item.endTime}</p>
+                    </div>
+                  ))}
               </div>
             ))}
           </div>
@@ -90,64 +130,86 @@ const Timetable: React.FC<TimetableProps> = ({ state, onAddSchedule, onRemoveSch
           <div className="bg-white rounded-2xl w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
             <h2 className="text-2xl font-bold text-slate-900 mb-6">Add Schedule Entry</h2>
             <form onSubmit={handleAdd} className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-slate-700 block mb-1">Subject</label>
-                <select 
-                  value={newEntry.subjectId}
-                  onChange={(e) => setNewEntry({...newEntry, subjectId: e.target.value})}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                >
-                  {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">Type</label>
+                  <select
+                    value={newEntry.type}
+                    onChange={(e) => setNewEntry({ ...newEntry, type: e.target.value as ActivityType })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {Object.values(ActivityType).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
                   <label className="text-sm font-medium text-slate-700 block mb-1">Day</label>
-                  <select 
+                  <select
                     value={newEntry.day}
-                    onChange={(e) => setNewEntry({...newEntry, day: e.target.value as DayOfWeek})}
+                    onChange={(e) => setNewEntry({ ...newEntry, day: e.target.value as DayOfWeek })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     {DAYS_OF_WEEK.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div>
-                   {/* Empty space for grid alignment */}
-                </div>
               </div>
+
+              {newEntry.type === ActivityType.STUDY ? (
+                <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">Subject</label>
+                  <select
+                    value={newEntry.subjectId}
+                    onChange={(e) => setNewEntry({ ...newEntry, subjectId: e.target.value, title: '' })}
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="">Select Subject</option>
+                    {state.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-sm font-medium text-slate-700 block mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={newEntry.title}
+                    onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
+                    placeholder="e.g. Morning Run"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-slate-700 block mb-1">Start Time</label>
-                  <input 
-                    type="time" 
+                  <input
+                    type="time"
                     value={newEntry.startTime}
-                    onChange={(e) => setNewEntry({...newEntry, startTime: e.target.value})}
+                    onChange={(e) => setNewEntry({ ...newEntry, startTime: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-700 block mb-1">End Time</label>
-                  <input 
-                    type="time" 
+                  <input
+                    type="time"
                     value={newEntry.endTime}
-                    onChange={(e) => setNewEntry({...newEntry, endTime: e.target.value})}
+                    onChange={(e) => setNewEntry({ ...newEntry, endTime: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
               </div>
 
               <div className="flex space-x-3 pt-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 px-4 py-3 bg-slate-100 text-slate-700 rounded-xl font-semibold hover:bg-slate-200 transition-colors"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all shadow-md"
                 >
                   Add Entry

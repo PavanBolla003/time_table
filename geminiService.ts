@@ -1,18 +1,18 @@
-
 import { GoogleGenAI, Type, FunctionDeclaration } from "@google/genai";
-import { AppState, DayOfWeek } from "./types";
+import { AppState, DayOfWeek, ActivityType } from "./types";
 
-const addStudyLogFunction: FunctionDeclaration = {
-  name: 'addStudyLog',
-  description: 'Adds a manual study session log for a subject.',
+const logActivityFunction: FunctionDeclaration = {
+  name: 'logActivity',
+  description: 'Logs any activity (Study, Sleep, Meal, Social, etc.) to the daily workflow.',
   parameters: {
     type: Type.OBJECT,
     properties: {
-      subjectName: { type: Type.STRING, description: 'The name of the subject (e.g. Math, Physics)' },
-      durationMinutes: { type: Type.NUMBER, description: 'Duration of study in minutes' },
-      date: { type: Type.STRING, description: 'Date of study in YYYY-MM-DD format. Defaults to today.' }
+      type: { type: Type.STRING, description: 'Type of activity: Study, Sleep, Meal, Social, Exercise, Class, Other' },
+      title: { type: Type.STRING, description: 'Title or description of the activity (e.g. "Math Study", "Lunch", "Instagram")' },
+      durationMinutes: { type: Type.NUMBER, description: 'Duration in minutes' },
+      startTime: { type: Type.STRING, description: 'Start time in HH:mm format (optional, defaults to now)' }
     },
-    required: ['subjectName', 'durationMinutes']
+    required: ['type', 'title', 'durationMinutes']
   }
 };
 
@@ -22,36 +22,38 @@ const updateScheduleFunction: FunctionDeclaration = {
   parameters: {
     type: Type.OBJECT,
     properties: {
-      subjectName: { type: Type.STRING, description: 'The name of the subject' },
+      subjectName: { type: Type.STRING, description: 'The name of the subject (if applicable)' },
+      title: { type: Type.STRING, description: 'Title of the event' },
       day: { type: Type.STRING, description: 'Day of the week (e.g. Monday, Tuesday)' },
       startTime: { type: Type.STRING, description: 'Start time in HH:mm' },
       endTime: { type: Type.STRING, description: 'End time in HH:mm' }
     },
-    required: ['subjectName', 'day', 'startTime', 'endTime']
+    required: ['title', 'day', 'startTime', 'endTime']
   }
 };
 
 export const chatWithGemini = async (prompt: string, state: AppState, onUpdate: (action: string, args: any) => void) => {
   // Always initialize GoogleGenAI inside the call with the correct API key from process.env.API_KEY
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const model = 'gemini-3-flash-preview';
-  
+  const model = 'gemini-2.0-flash';
+
   const systemInstruction = `
-    You are StudiFlow AI, a helpful study assistant. 
-    You have access to the user's study data:
-    - User: ${JSON.stringify(state.user)}
-    - Subjects: ${JSON.stringify(state.subjects)}
-    - Schedule: ${JSON.stringify(state.schedules)}
-    - Logs (Total logs count): ${state.logs.length}
+    You are StudiFlow AI, a smart daily workflow assistant. 
+    You have access to the user's data:
+    - User Name: ${state.user?.name}
+    - Subjects: ${JSON.stringify(state.subjects.map(s => s.name))}
+    - Today's Logs: ${state.logs.length} entries
     
     Current Date: ${new Date().toISOString().split('T')[0]}
     
-    Users might ask you to:
-    1. Log study time (e.g., "I studied Math for 2 hours today").
-    2. Add/Update their timetable (e.g., "Schedule Physics for Mondays at 2pm to 4pm").
-    3. Get stats (e.g., "How many hours did I study this week?").
+    Capabilities:
+    1. Log any activity (Study, Sleep, Meals, Social Media).
+       - If user says "I studied Math for 2 hours", call logActivity(type='Study', title='Math', duration=120).
+       - If user says "I slept for 8 hours", call logActivity(type='Sleep', title='Night Sleep', duration=480).
+    2. Manage Schedule.
+    3. Analyze data (e.g. "How much sleep did I get?").
     
-    Always be encouraging and professional. If you call a function, confirm the action to the user.
+    Be concise, friendly, and motivational.
   `;
 
   try {
@@ -60,7 +62,7 @@ export const chatWithGemini = async (prompt: string, state: AppState, onUpdate: 
       contents: prompt,
       config: {
         systemInstruction,
-        tools: [{ functionDeclarations: [addStudyLogFunction, updateScheduleFunction] }]
+        tools: [{ functionDeclarations: [logActivityFunction, updateScheduleFunction] }]
       }
     });
 
@@ -72,7 +74,7 @@ export const chatWithGemini = async (prompt: string, state: AppState, onUpdate: 
       }
     }
 
-    // Access .text property directly (not a method)
+    // Access .text property directly
     return response.text;
   } catch (error) {
     console.error("Gemini Error:", error);

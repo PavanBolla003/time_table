@@ -11,6 +11,8 @@ const initialState: AppState = {
     name: 'Student Pro',
     email: 'hello@studiflow.com',
     dailyGoalHours: 6,
+    sleepGoalHours: 8,
+    socialMediaLimitMinutes: 60,
   },
   subjects: DEFAULT_SUBJECTS,
   schedules: [],
